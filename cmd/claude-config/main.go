@@ -311,9 +311,15 @@ func printImportResult(cmd *cobra.Command, result *config.WriteResult, bundle *p
 		}
 	}
 
-	if result.PluginsToSync > 0 {
-		fmt.Fprintf(w, "\nPlugins: %d enabled in settings\n", result.PluginsToSync)
-		fmt.Fprintln(w, "Claude Code will install them from the marketplace on next launch.")
+	if len(result.PluginsInstalled) > 0 {
+		fmt.Fprintf(w, "\nPlugins installed: %d\n", len(result.PluginsInstalled))
+	}
+	if len(result.PluginsFailed) > 0 {
+		fmt.Fprintf(w, "\nPlugins failed to install (%d):\n", len(result.PluginsFailed))
+		for _, p := range result.PluginsFailed {
+			fmt.Fprintf(w, "  - %s\n", p)
+		}
+		fmt.Fprintln(w, "Try installing manually: claude plugin install <name>")
 	}
 
 	if len(result.RedactedServers) > 0 {

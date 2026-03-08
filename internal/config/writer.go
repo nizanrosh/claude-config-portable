@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/nizanrosh/claude-config-portable/internal/merge"
@@ -27,11 +28,12 @@ type WriteOptions struct {
 
 // WriteResult summarizes what was written during import.
 type WriteResult struct {
-	FilesWritten    []string
-	SkillsWritten   []string
-	PluginsToSync   int
-	RedactedServers []string
-	Warnings        []string
+	FilesWritten      []string
+	SkillsWritten     []string
+	PluginsInstalled  []string
+	PluginsFailed     []string
+	RedactedServers   []string
+	Warnings          []string
 }
 
 // WriteBundle writes a ConfigBundle to disk.
@@ -79,12 +81,14 @@ func WriteBundle(bundle *payload.ConfigBundle, opts WriteOptions) (*WriteResult,
 		}
 	}
 
-	// NOTE: We intentionally do NOT write installed_plugins.json or plugin MCP configs.
-	// The settings.json contains enabledPlugins which tells Claude Code what to install.
-	// Claude Code will download and install the plugins from the marketplace on next launch.
-	// Writing empty cache dirs would cause "plugin may not exist in marketplace" errors.
-	if len(bundle.Plugins.Plugins) > 0 {
-		result.PluginsToSync = countPluginEntries(bundle)
+	// Install plugins via `claude plugin install` CLI.
+	// Just writing settings.json isn't enough — Claude Code doesn't auto-download
+	// plugins from enabledPlugins. We must explicitly trigger installation.
+	if !opts.DryRun {
+		pluginNames := extractEnabledPlugins(bundle.Settings)
+		if len(pluginNames) > 0 {
+			installPlugins(pluginNames, result)
+		}
 	}
 
 	// Write user MCP config
@@ -211,12 +215,49 @@ func reconstructMarketplaces(data json.RawMessage, paths Paths) (json.RawMessage
 	return json.Marshal(raw)
 }
 
-func countPluginEntries(bundle *payload.ConfigBundle) int {
-	count := 0
-	for _, installs := range bundle.Plugins.Plugins {
-		count += len(installs)
+// extractEnabledPlugins parses the enabledPlugins map from settings JSON.
+// Returns plugin specs like "superpowers@claude-plugins-official".
+func extractEnabledPlugins(settings json.RawMessage) []string {
+	var s map[string]json.RawMessage
+	if json.Unmarshal(settings, &s) != nil {
+		return nil
 	}
-	return count
+	epRaw, ok := s["enabledPlugins"]
+	if !ok {
+		return nil
+	}
+	var enabled map[string]bool
+	if json.Unmarshal(epRaw, &enabled) != nil {
+		return nil
+	}
+	var names []string
+	for name, on := range enabled {
+		if on {
+			names = append(names, name)
+		}
+	}
+	return names
+}
+
+// installPlugins calls `claude plugin install <name> --scope user` for each plugin.
+func installPlugins(plugins []string, result *WriteResult) {
+	claudeBin, err := exec.LookPath("claude")
+	if err != nil {
+		result.Warnings = append(result.Warnings,
+			"claude CLI not found in PATH — skipping plugin installation. Install plugins manually with: claude plugin install <name>")
+		return
+	}
+
+	for _, plugin := range plugins {
+		cmd := exec.Command(claudeBin, "plugin", "install", plugin, "--scope", "user")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			result.PluginsFailed = append(result.PluginsFailed, plugin)
+		} else {
+			result.PluginsInstalled = append(result.PluginsInstalled, plugin)
+		}
+	}
 }
 
 func joinLines(lines []string) string {
