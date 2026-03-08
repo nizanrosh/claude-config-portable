@@ -286,7 +286,7 @@ func printInspection(cmd *cobra.Command, bundle *payload.ConfigBundle) {
 				if json.Unmarshal(statusRaw, &status) == nil {
 					if cmdRaw, ok := status["command"]; ok {
 						var c string
-						json.Unmarshal(cmdRaw, &c)
+						_ = json.Unmarshal(cmdRaw, &c)
 						fmt.Fprintf(w, "\nstatusLine command [SECURITY RISK]: %s\n", c)
 					}
 				}
@@ -333,11 +333,11 @@ func printInspection(cmd *cobra.Command, bundle *payload.ConfigBundle) {
 			for _, m := range marketplaces {
 				var name string
 				if n, ok := m["name"]; ok {
-					json.Unmarshal(n, &name)
+					_ = json.Unmarshal(n, &name)
 				}
 				var id string
 				if i, ok := m["id"]; ok {
-					json.Unmarshal(i, &id)
+					_ = json.Unmarshal(i, &id)
 				}
 				if name != "" {
 					fmt.Fprintf(w, "  - %s (%s)\n", name, id)
@@ -441,19 +441,19 @@ func extractMCPType(cfg json.RawMessage) string {
 	}
 	var typ string
 	if t, ok := obj["type"]; ok {
-		json.Unmarshal(t, &typ)
+		_ = json.Unmarshal(t, &typ)
 	}
 	info := "(" + typ
 	if urlRaw, ok := obj["url"]; ok {
 		var u string
-		json.Unmarshal(urlRaw, &u)
+		_ = json.Unmarshal(urlRaw, &u)
 		if u != "" {
 			info += " " + u
 		}
 	}
 	if cmdRaw, ok := obj["command"]; ok {
 		var c string
-		json.Unmarshal(cmdRaw, &c)
+		_ = json.Unmarshal(cmdRaw, &c)
 		if c != "" {
 			info += " " + c
 		}

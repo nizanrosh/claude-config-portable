@@ -81,10 +81,14 @@ func TestFilterMCPConfig_StripsURLQueryParams(t *testing.T) {
 	}
 
 	var obj map[string]json.RawMessage
-	json.Unmarshal(filtered, &obj)
+	if err := json.Unmarshal(filtered, &obj); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
 
 	var url string
-	json.Unmarshal(obj["url"], &url)
+	if err := json.Unmarshal(obj["url"], &url); err != nil {
+		t.Fatalf("url unmarshal failed: %v", err)
+	}
 	if url != "https://api.example.com/v1" {
 		t.Errorf("URL query params not stripped: got %q", url)
 	}
@@ -167,7 +171,9 @@ func TestFilterMCPConfig_NamedServerFormat(t *testing.T) {
 
 	// type should be preserved
 	var typ string
-	json.Unmarshal(server["type"], &typ)
+	if err := json.Unmarshal(server["type"], &typ); err != nil {
+		t.Fatalf("type unmarshal failed: %v", err)
+	}
 	if typ != "http" {
 		t.Errorf("type not preserved: got %q", typ)
 	}
@@ -184,7 +190,9 @@ func TestFilterMCPConfig_NamedServerWithEnv(t *testing.T) {
 	}
 
 	var obj map[string]map[string]json.RawMessage
-	json.Unmarshal(filtered, &obj)
+	if err := json.Unmarshal(filtered, &obj); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
 
 	server := obj["greptile"]
 	for _, key := range []string{"env", "oauth"} {
@@ -199,7 +207,9 @@ func TestFilterMCPConfig_NamedServerWithEnv(t *testing.T) {
 
 	// command should be preserved
 	var cmd string
-	json.Unmarshal(server["command"], &cmd)
+	if err := json.Unmarshal(server["command"], &cmd); err != nil {
+		t.Fatalf("command unmarshal failed: %v", err)
+	}
 	if cmd != "node" {
 		t.Errorf("command not preserved: got %q", cmd)
 	}
@@ -223,17 +233,23 @@ func TestFilterMCPServers_NestedServers(t *testing.T) {
 	}
 
 	var obj map[string]map[string]map[string]json.RawMessage
-	json.Unmarshal(filtered, &obj)
+	if err := json.Unmarshal(filtered, &obj); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
 
 	server := obj["mcpServers"]["my-server"]
 	var headers string
-	json.Unmarshal(server["headers"], &headers)
+	if err := json.Unmarshal(server["headers"], &headers); err != nil {
+		t.Fatalf("headers unmarshal failed: %v", err)
+	}
 	if headers != redactedPlaceholder {
 		t.Errorf("nested headers not redacted: got %q", headers)
 	}
 
 	var url string
-	json.Unmarshal(server["url"], &url)
+	if err := json.Unmarshal(server["url"], &url); err != nil {
+		t.Fatalf("url unmarshal failed: %v", err)
+	}
 	if url != "https://example.com" {
 		t.Errorf("nested URL query params not stripped: got %q", url)
 	}

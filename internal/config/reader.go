@@ -126,13 +126,13 @@ func parseAndStripPlugins(data []byte) (payload.PluginManifest, error) {
 
 			pi := payload.PluginInstall{}
 			if v, ok := full["scope"]; ok {
-				json.Unmarshal(v, &pi.Scope)
+				_ = json.Unmarshal(v, &pi.Scope)
 			}
 			if v, ok := full["version"]; ok {
-				json.Unmarshal(v, &pi.Version)
+				_ = json.Unmarshal(v, &pi.Version)
 			}
 			if v, ok := full["gitCommitSha"]; ok {
-				json.Unmarshal(v, &pi.GitCommitSha)
+				_ = json.Unmarshal(v, &pi.GitCommitSha)
 			}
 			result.Plugins[name] = append(result.Plugins[name], pi)
 		}

@@ -23,21 +23,27 @@ func TestDeepMerge_Objects(t *testing.T) {
 
 	// "a" should be overwritten by overlay
 	var a string
-	json.Unmarshal(obj["a"], &a)
+	if err := json.Unmarshal(obj["a"], &a); err != nil {
+		t.Fatalf("unmarshal a failed: %v", err)
+	}
 	if a != "2" {
 		t.Errorf("a should be overwritten: got %q", a)
 	}
 
 	// "c" should be added from overlay
 	var c string
-	json.Unmarshal(obj["c"], &c)
+	if err := json.Unmarshal(obj["c"], &c); err != nil {
+		t.Fatalf("unmarshal c failed: %v", err)
+	}
 	if c != "3" {
 		t.Errorf("c should be added: got %q", c)
 	}
 
 	// nested "b" should be merged
 	var b map[string]string
-	json.Unmarshal(obj["b"], &b)
+	if err := json.Unmarshal(obj["b"], &b); err != nil {
+		t.Fatalf("unmarshal b failed: %v", err)
+	}
 	if b["x"] != "new" {
 		t.Errorf("b.x should be overwritten: got %q", b["x"])
 	}
