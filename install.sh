@@ -6,7 +6,7 @@ set -euo pipefail
 
 REPO="nizanrosh/claude-config-portable"
 BINARY="claude-config"
-INSTALL_DIR="/usr/local/bin"
+INSTALL_DIR="${HOME}/.local/bin"
 
 # Colors
 RED='\033[0;31m'
@@ -82,7 +82,7 @@ download_and_install() {
     local tmpdir
 
     tmpdir="$(mktemp -d)"
-    trap 'rm -rf "$tmpdir"' EXIT
+    trap 'rm -rf "${tmpdir:-}"' EXIT
 
     info "Downloading ${tarball}..."
     if [ "$USE_GH" = true ]; then
@@ -102,31 +102,62 @@ download_and_install() {
     ok "Extracted"
 
     # Install binary
-    if [ -w "$INSTALL_DIR" ]; then
-        mv "${tmpdir}/${BINARY}" "${INSTALL_DIR}/${BINARY}"
-    else
-        info "Need sudo to install to ${INSTALL_DIR}"
-        sudo mv "${tmpdir}/${BINARY}" "${INSTALL_DIR}/${BINARY}"
-    fi
+    mkdir -p "$INSTALL_DIR"
+    mv "${tmpdir}/${BINARY}" "${INSTALL_DIR}/${BINARY}"
     chmod +x "${INSTALL_DIR}/${BINARY}"
     ok "Installed to ${INSTALL_DIR}/${BINARY}"
 }
 
 # --- Verify ---
 
-verify_install() {
-    if ! command -v "$BINARY" &>/dev/null; then
-        warn "${INSTALL_DIR} is not in your PATH"
-        echo ""
-        echo "  Add this to your shell profile (~/.zshrc or ~/.bashrc):"
-        echo ""
-        echo "    export PATH=\"${INSTALL_DIR}:\$PATH\""
-        echo ""
+ensure_in_path() {
+    if echo "$PATH" | tr ':' '\n' | grep -qx "$INSTALL_DIR"; then
         return
     fi
 
+    # Detect shell profile
+    local profile=""
+    case "${SHELL:-}" in
+        */zsh)  profile="$HOME/.zshrc" ;;
+        */bash)
+            if [ -f "$HOME/.bash_profile" ]; then
+                profile="$HOME/.bash_profile"
+            else
+                profile="$HOME/.bashrc"
+            fi
+            ;;
+        *)
+            if [ -f "$HOME/.zshrc" ]; then
+                profile="$HOME/.zshrc"
+            elif [ -f "$HOME/.bashrc" ]; then
+                profile="$HOME/.bashrc"
+            fi
+            ;;
+    esac
+
+    if [ -n "$profile" ]; then
+        local line="export PATH=\"${INSTALL_DIR}:\$PATH\""
+        if ! grep -qF "$INSTALL_DIR" "$profile" 2>/dev/null; then
+            echo "" >> "$profile"
+            echo "# Added by claude-config installer" >> "$profile"
+            echo "$line" >> "$profile"
+            ok "Added ${INSTALL_DIR} to PATH in ${profile}"
+        fi
+        # Make available in current session
+        export PATH="${INSTALL_DIR}:${PATH}"
+    else
+        warn "Could not detect shell profile. Add this to your shell config manually:"
+        echo ""
+        echo "    export PATH=\"${INSTALL_DIR}:\$PATH\""
+        echo ""
+    fi
+}
+
+verify_install() {
+    ensure_in_path
+
     local installed_version
-    installed_version="$("$BINARY" version 2>/dev/null || true)"
+    installed_version="$("${INSTALL_DIR}/${BINARY}" version 2>/dev/null || true)"
     ok "${installed_version}"
 }
 
