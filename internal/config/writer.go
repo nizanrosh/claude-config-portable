@@ -239,13 +239,24 @@ func extractEnabledPlugins(settings json.RawMessage) []string {
 	return names
 }
 
-// installPlugins calls `claude plugin install <name> --scope user` for each plugin.
+// installPlugins updates marketplaces first, then calls `claude plugin install`
+// for each plugin.
 func installPlugins(plugins []string, result *WriteResult) {
 	claudeBin, err := exec.LookPath("claude")
 	if err != nil {
 		result.Warnings = append(result.Warnings,
 			"claude CLI not found in PATH — skipping plugin installation. Install plugins manually with: claude plugin install <name>")
 		return
+	}
+
+	// Update all marketplaces first so plugin source paths exist
+	fmt.Println("Updating marketplaces...")
+	cmd := exec.Command(claudeBin, "plugin", "marketplace", "update")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		result.Warnings = append(result.Warnings,
+			fmt.Sprintf("marketplace update failed: %v — some plugins may fail to install", err))
 	}
 
 	for _, plugin := range plugins {
