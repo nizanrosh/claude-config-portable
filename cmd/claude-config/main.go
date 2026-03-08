@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
+	"runtime"
 	"strings"
 
 	"github.com/nizanrosh/claude-config-portable/internal/config"
@@ -33,6 +35,7 @@ func exportCmd() *cobra.Command {
 		withSecrets bool
 		noSkills    bool
 		output      string
+		copyClip    bool
 	)
 
 	cmd := &cobra.Command{
@@ -57,11 +60,15 @@ func exportCmd() *cobra.Command {
 					return fmt.Errorf("writing to %s: %w", output, err)
 				}
 				fmt.Fprintf(cmd.ErrOrStderr(), "Config exported to %s\n", output)
-				printExportSummary(cmd, bundle)
-				return nil
+			} else if copyClip {
+				if err := copyToClipboard(encoded); err != nil {
+					return fmt.Errorf("copying to clipboard: %w", err)
+				}
+				fmt.Fprintln(cmd.ErrOrStderr(), "Config copied to clipboard!")
+			} else {
+				fmt.Fprintln(cmd.OutOrStdout(), encoded)
 			}
 
-			fmt.Fprintln(cmd.OutOrStdout(), encoded)
 			printExportSummary(cmd, bundle)
 			return nil
 		},
@@ -70,6 +77,7 @@ func exportCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&withSecrets, "with-secrets", false, "Include MCP server secrets (headers, env vars, OAuth tokens)")
 	cmd.Flags().BoolVar(&noSkills, "no-skills", false, "Exclude user-created skills")
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Write to file instead of stdout")
+	cmd.Flags().BoolVarP(&copyClip, "copy", "c", false, "Copy to clipboard instead of printing")
 
 	return cmd
 }
@@ -346,4 +354,23 @@ func countPlugins(bundle *payload.ConfigBundle) int {
 		count += len(installs)
 	}
 	return count
+}
+
+func copyToClipboard(text string) error {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("pbcopy")
+	case "linux":
+		// Try xclip first, fall back to xsel
+		if _, err := exec.LookPath("xclip"); err == nil {
+			cmd = exec.Command("xclip", "-selection", "clipboard")
+		} else {
+			cmd = exec.Command("xsel", "--clipboard", "--input")
+		}
+	default:
+		return fmt.Errorf("clipboard not supported on %s", runtime.GOOS)
+	}
+	cmd.Stdin = strings.NewReader(text)
+	return cmd.Run()
 }

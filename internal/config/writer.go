@@ -106,6 +106,16 @@ func WriteBundle(bundle *payload.ConfigBundle, opts WriteOptions) (*WriteResult,
 	for _, skill := range bundle.Skills {
 		skillPath := filepath.Join(paths.SkillsDir, skill.Name)
 		if skill.IsSymlink {
+			// Resolve symlink target relative to the skills dir
+			targetPath := skill.LinkTarget
+			if !filepath.IsAbs(targetPath) {
+				targetPath = filepath.Join(paths.SkillsDir, targetPath)
+			}
+			if _, err := os.Stat(targetPath); err != nil {
+				result.Warnings = append(result.Warnings,
+					fmt.Sprintf("skill %q is a symlink to %q which does not exist on this machine — skipping", skill.Name, skill.LinkTarget))
+				continue
+			}
 			if _, err := os.Lstat(skillPath); err == nil {
 				if opts.Mode == WriteModeForce {
 					os.Remove(skillPath)
