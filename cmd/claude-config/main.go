@@ -192,12 +192,27 @@ func importCmd() *cobra.Command {
 }
 
 func inspectCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "inspect <string-or-file>",
+	var fromClipboard bool
+
+	cmd := &cobra.Command{
+		Use:   "inspect [string-or-file]",
 		Short: "Show a human-readable summary of a config export",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			input, err := resolveInput(args[0])
+			var input string
+			var err error
+			if fromClipboard {
+				input, err = readFromClipboard()
+				if err != nil {
+					return fmt.Errorf("reading from clipboard: %w", err)
+				}
+				input = strings.TrimSpace(input)
+			} else {
+				if len(args) == 0 {
+					return fmt.Errorf("provide a config string, file path, or use --from-clipboard")
+				}
+				input, err = resolveInput(args[0])
+			}
 			if err != nil {
 				return err
 			}
@@ -211,6 +226,9 @@ func inspectCmd() *cobra.Command {
 			return nil
 		},
 	}
+
+	cmd.Flags().BoolVar(&fromClipboard, "from-clipboard", false, "Read config from clipboard instead of argument")
+	return cmd
 }
 
 func versionCmd() *cobra.Command {
