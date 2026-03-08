@@ -62,6 +62,9 @@ claude-config export --no-skills
 # Import from string
 claude-config import 'ccfg:1:...'
 
+# Import from clipboard
+claude-config import --from-clipboard
+
 # Import from file
 claude-config import my-setup.txt
 
