@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"time"
 
 	"github.com/nizanrosh/claude-config-portable/internal/merge"
 	"github.com/nizanrosh/claude-config-portable/internal/payload"
@@ -200,10 +201,12 @@ func reconstructMarketplaces(data json.RawMessage, paths Paths) (json.RawMessage
 		return data, nil
 	}
 
+	now, _ := json.Marshal(time.Now().UTC().Format(time.RFC3339Nano))
 	for name, entry := range raw {
 		loc := filepath.Join(paths.ClaudeDir, "plugins", "marketplaces", name)
 		locJSON, _ := json.Marshal(loc)
 		entry["installLocation"] = locJSON
+		entry["lastUpdated"] = now
 	}
 
 	return json.Marshal(raw)
