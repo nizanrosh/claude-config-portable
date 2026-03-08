@@ -142,18 +142,11 @@ func parseAndStripPlugins(data []byte) (payload.PluginManifest, error) {
 }
 
 // stripMarketplaceFields removes installLocation and lastUpdated from marketplace entries.
+// The file format is: { "marketplace-name": { "source": {...}, "installLocation": "...", "lastUpdated": "..." }, ... }
 func stripMarketplaceFields(data []byte) (json.RawMessage, error) {
-	var raw []map[string]json.RawMessage
+	var raw map[string]map[string]json.RawMessage
 	if err := json.Unmarshal(data, &raw); err != nil {
-		// Might be an object, not array — try that
-		var obj map[string]json.RawMessage
-		if err2 := json.Unmarshal(data, &obj); err2 != nil {
-			return data, nil // return as-is if we can't parse
-		}
-		delete(obj, "installLocation")
-		delete(obj, "lastUpdated")
-		out, _ := json.Marshal(obj)
-		return out, nil
+		return data, nil // return as-is if we can't parse
 	}
 
 	for _, entry := range raw {

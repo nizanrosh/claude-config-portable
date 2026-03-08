@@ -193,23 +193,17 @@ func writeJSONFile(path string, data json.RawMessage, opts WriteOptions, result 
 }
 
 // reconstructMarketplaces adds installLocation back to marketplace entries.
+// Format: { "marketplace-name": { "source": {...} }, ... }
 func reconstructMarketplaces(data json.RawMessage, paths Paths) (json.RawMessage, error) {
-	var raw []map[string]json.RawMessage
+	var raw map[string]map[string]json.RawMessage
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return data, nil
 	}
 
-	for _, entry := range raw {
-		// Extract the id to build the installLocation
-		var id string
-		if idRaw, ok := entry["id"]; ok {
-			json.Unmarshal(idRaw, &id)
-		}
-		if id != "" {
-			loc := filepath.Join(paths.ClaudeDir, "plugins", "marketplaces", id)
-			locJSON, _ := json.Marshal(loc)
-			entry["installLocation"] = locJSON
-		}
+	for name, entry := range raw {
+		loc := filepath.Join(paths.ClaudeDir, "plugins", "marketplaces", name)
+		locJSON, _ := json.Marshal(loc)
+		entry["installLocation"] = locJSON
 	}
 
 	return json.Marshal(raw)
