@@ -1,3 +1,5 @@
+// Package skills collects user-created skill directories from ~/.claude/skills/,
+// handling both regular directories and symlinks.
 package skills
 
 import (

@@ -1,3 +1,5 @@
+// Package payload defines the ConfigBundle wire format and handles
+// encoding (JSON → gzip → base64) and decoding of portable config strings.
 package payload
 
 import "encoding/json"

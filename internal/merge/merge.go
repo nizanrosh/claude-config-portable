@@ -1,3 +1,4 @@
+// Package merge provides recursive JSON deep-merge for the --merge import mode.
 package merge
 
 import (

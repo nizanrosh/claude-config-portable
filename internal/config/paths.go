@@ -1,3 +1,5 @@
+// Package config handles reading and writing Claude Code configuration files
+// from ~/.claude/, including settings, plugins, marketplaces, MCP configs, and skills.
 package config
 
 import (

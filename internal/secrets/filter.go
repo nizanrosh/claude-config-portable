@@ -1,3 +1,5 @@
+// Package secrets strips sensitive data (headers, env vars, OAuth tokens, URL
+// query parameters) from MCP server configurations during export.
 package secrets
 
 import (

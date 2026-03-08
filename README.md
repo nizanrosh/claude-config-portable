@@ -1,5 +1,10 @@
 # claude-config-portable
 
+[![CI](https://github.com/nizanrosh/claude-config-portable/actions/workflows/ci.yml/badge.svg)](https://github.com/nizanrosh/claude-config-portable/actions/workflows/ci.yml)
+[![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go)](https://go.dev)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Latest Release](https://img.shields.io/github/v/release/nizanrosh/claude-config-portable)](https://github.com/nizanrosh/claude-config-portable/releases/latest)
+
 Portable CLI to export and import your entire Claude Code setup (plugins, skills, MCPs, settings) as a single string.
 
 Share your Claude Code configuration between machines or teammates — no manual copying of dotfiles required.
@@ -8,6 +13,12 @@ Share your Claude Code configuration between machines or teammates — no manual
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/nizanrosh/claude-config-portable/main/install.sh | bash
+```
+
+Or with Go:
+
+```bash
+go install github.com/nizanrosh/claude-config-portable/cmd/claude-config@latest
 ```
 
 ## What Gets Exported
