@@ -29,7 +29,9 @@ func TestFilterMCPConfig_StripsHeaders(t *testing.T) {
 
 	// type should be preserved
 	var typ string
-	json.Unmarshal(obj["type"], &typ)
+	if err := json.Unmarshal(obj["type"], &typ); err != nil {
+		t.Fatalf("type unmarshal failed: %v", err)
+	}
 	if typ != "sse" {
 		t.Errorf("type not preserved: got %q", typ)
 	}
@@ -45,7 +47,9 @@ func TestFilterMCPConfig_StripsEnvAndOAuth(t *testing.T) {
 	}
 
 	var obj map[string]json.RawMessage
-	json.Unmarshal(filtered, &obj)
+	if err := json.Unmarshal(filtered, &obj); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
 
 	for _, key := range []string{"env", "oauth"} {
 		var val string
@@ -59,7 +63,9 @@ func TestFilterMCPConfig_StripsEnvAndOAuth(t *testing.T) {
 
 	// command should be preserved
 	var cmd string
-	json.Unmarshal(obj["command"], &cmd)
+	if err := json.Unmarshal(obj["command"], &cmd); err != nil {
+		t.Fatalf("command unmarshal failed: %v", err)
+	}
 	if cmd != "node" {
 		t.Errorf("command not preserved: got %q", cmd)
 	}

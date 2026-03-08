@@ -9,10 +9,10 @@ import (
 // DeepMerge merges two JSON documents. Values from overlay take precedence
 // on conflicts. Objects are recursively merged; all other types are overwritten.
 func DeepMerge(base, overlay json.RawMessage) (json.RawMessage, error) {
-	if base == nil || len(base) == 0 {
+	if len(base) == 0 {
 		return overlay, nil
 	}
-	if overlay == nil || len(overlay) == 0 {
+	if len(overlay) == 0 {
 		return base, nil
 	}
 

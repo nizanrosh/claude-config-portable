@@ -297,7 +297,7 @@ func printInspection(cmd *cobra.Command, bundle *payload.ConfigBundle) {
 	if len(bundle.Skills) > 0 {
 		fmt.Fprintf(w, "\nSkills (%d):\n", len(bundle.Skills))
 		for _, skill := range bundle.Skills {
-			kind := "dir"
+			var kind string
 			if skill.IsSymlink {
 				kind = fmt.Sprintf("symlink → %s", skill.LinkTarget)
 			} else {
@@ -393,19 +393,15 @@ func printSecuritySummary(cmd *cobra.Command, bundle *payload.ConfigBundle, with
 	}
 
 	// Check for MCP servers (traffic redirect risk)
-	mcpCount := 0
 	if len(bundle.UserMCPConfig) > 0 {
 		var obj map[string]json.RawMessage
 		if json.Unmarshal(bundle.UserMCPConfig, &obj) == nil {
 			if servers, ok := obj["mcpServers"]; ok {
 				var srvMap map[string]json.RawMessage
-				if json.Unmarshal(servers, &srvMap) == nil {
-					mcpCount += len(srvMap)
-					if len(srvMap) > 0 {
-						fmt.Fprintf(w, "\nUser MCP servers (%d) — these handle tool calls:\n", len(srvMap))
-						for name, cfg := range srvMap {
-							fmt.Fprintf(w, "  - %s %s\n", name, extractMCPType(cfg))
-						}
+				if json.Unmarshal(servers, &srvMap) == nil && len(srvMap) > 0 {
+					fmt.Fprintf(w, "\nUser MCP servers (%d) — these handle tool calls:\n", len(srvMap))
+					for name, cfg := range srvMap {
+						fmt.Fprintf(w, "  - %s %s\n", name, extractMCPType(cfg))
 					}
 				}
 			}
