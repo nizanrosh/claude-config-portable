@@ -35,6 +35,9 @@ claude-config export
 # Save to file
 claude-config export -o my-setup.txt
 
+# Copy to clipboard
+claude-config export -c
+
 # Include MCP secrets (handle with care)
 claude-config export --with-secrets
 
@@ -59,7 +62,18 @@ claude-config import my-setup.txt --force
 
 # Deep-merge with existing config (incoming wins on conflicts)
 claude-config import my-setup.txt --merge
+
+# Include hooks (stripped by default for security)
+claude-config import my-setup.txt --force --with-hooks
+
+# Only import specific components
+claude-config import my-setup.txt --force --only settings,plugins
+
+# Skip specific components
+claude-config import my-setup.txt --force --skip skills,mcp
 ```
+
+Available components for `--only` and `--skip`: `settings`, `hooks`, `permissions`, `plugins`, `marketplaces`, `mcp`, `skills`.
 
 ### Inspect
 
@@ -86,8 +100,12 @@ MCP Configs (15):
   - claude-plugins-official/slack/1.0.0 [secrets redacted]
   ...
 
+Hooks (1 event types) [SECURITY RISK]:
+  [PostToolUse] *: if command -v osascript >/dev/null 2>&1; then osascript -e 'display notification...
+
 Skills (4):
   - golang-backend (1 files)
+      SKILL.md
   - find-skills (symlink → ../../.agents/skills/find-skills)
   ...
 
@@ -95,6 +113,46 @@ Settings highlights:
   model: "opus"
   effortLevel: "high"
 ```
+
+## Security
+
+### Hooks are stripped by default
+
+`settings.local.json` can contain **hooks** — shell commands that execute automatically during Claude Code sessions. These are a code execution risk when importing config from untrusted sources.
+
+By default, `import` strips hooks and statusLine commands. Use `--with-hooks` only if you trust the source.
+
+### Security summary on import
+
+Every import prints a security summary before writing, showing:
+- Detected hooks (and whether they'll be stripped)
+- Skills being imported (prompt injection risk)
+- MCP servers with their types and URLs (traffic redirect risk)
+
+### Selective import
+
+Use `--only` or `--skip` to control exactly which components get imported:
+
+```bash
+# Only import settings and plugins — skip everything else
+claude-config import config.txt --force --only settings,plugins
+
+# Import everything except skills and MCP config
+claude-config import config.txt --force --skip skills,mcp
+```
+
+### Secret handling
+
+MCP configs are exported with sensitive blocks replaced by `__CONFIGURE_AFTER_IMPORT__`:
+
+- `headers` — often contains `Authorization: Bearer ...`
+- `env` — environment variables with API keys
+- `oauth` — OAuth tokens
+- URL query parameters — may contain `?token=...`
+
+On import, you'll see a warning listing which MCP servers need manual credential setup.
+
+Use `--with-secrets` to preserve credentials in the export (e.g., for your own machines over a secure channel).
 
 ## Wire Format
 
@@ -105,19 +163,6 @@ ccfg:1:<base64-encoded gzipped JSON>
 - `ccfg:` — magic prefix for recognition
 - `1:` — schema version for forward compatibility
 - Payload: JSON → gzip → base64
-
-## Secret Handling
-
-By default, MCP configs are exported with sensitive blocks replaced by `__CONFIGURE_AFTER_IMPORT__`:
-
-- `headers` — often contains `Authorization: Bearer ...`
-- `env` — environment variables with API keys
-- `oauth` — OAuth tokens
-- URL query parameters — may contain `?token=...`
-
-On import, you'll see a warning listing which MCP servers need manual credential setup.
-
-Use `--with-secrets` to preserve credentials in the export (e.g., for your own machines over a secure channel).
 
 ## Build from Source
 

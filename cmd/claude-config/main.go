@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"runtime"
@@ -84,9 +85,12 @@ func exportCmd() *cobra.Command {
 
 func importCmd() *cobra.Command {
 	var (
-		force  bool
-		doMerge bool
-		dryRun bool
+		force     bool
+		doMerge   bool
+		dryRun    bool
+		withHooks bool
+		only      []string
+		skip      []string
 	)
 
 	cmd := &cobra.Command{
@@ -104,13 +108,26 @@ func importCmd() *cobra.Command {
 				return fmt.Errorf("decoding config: %w", err)
 			}
 
+			// Print security summary before import
+			printSecuritySummary(cmd, bundle, withHooks)
+
+			mode := config.WriteModeForce
+			if doMerge {
+				mode = config.WriteModeMerge
+			}
+
+			writeOpts := config.WriteOptions{
+				Mode:      mode,
+				DryRun:    dryRun,
+				WithHooks: withHooks,
+				Only:      only,
+				Skip:      skip,
+			}
+
 			if dryRun {
 				fmt.Fprintln(cmd.ErrOrStderr(), "=== DRY RUN — no changes will be written ===")
 				printInspection(cmd, bundle)
-				result, err := config.WriteBundle(bundle, config.WriteOptions{
-					Mode:   config.WriteModeForce,
-					DryRun: true,
-				})
+				result, err := config.WriteBundle(bundle, writeOpts)
 				if err != nil {
 					return err
 				}
@@ -127,12 +144,7 @@ func importCmd() *cobra.Command {
 				}
 			}
 
-			mode := config.WriteModeForce
-			if doMerge {
-				mode = config.WriteModeMerge
-			}
-
-			result, err := config.WriteBundle(bundle, config.WriteOptions{Mode: mode})
+			result, err := config.WriteBundle(bundle, writeOpts)
 			if err != nil {
 				return err
 			}
@@ -145,6 +157,9 @@ func importCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&force, "force", false, "Overwrite existing config files")
 	cmd.Flags().BoolVar(&doMerge, "merge", false, "Deep-merge with existing config (incoming wins on conflicts)")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would change without writing")
+	cmd.Flags().BoolVar(&withHooks, "with-hooks", false, "Import hooks from settings.local.json (stripped by default for security)")
+	cmd.Flags().StringSliceVar(&only, "only", nil, "Only import these components (settings,hooks,permissions,plugins,marketplaces,mcp,skills)")
+	cmd.Flags().StringSliceVar(&skip, "skip", nil, "Skip these components during import")
 
 	return cmd
 }
@@ -248,7 +263,31 @@ func printInspection(cmd *cobra.Command, bundle *payload.ConfigBundle) {
 						if secrets.HasRedactedValues(cfg) {
 							redacted = " [secrets redacted]"
 						}
-						fmt.Fprintf(w, "  - %s%s\n", name, redacted)
+						fmt.Fprintf(w, "  - %s %s%s\n", name, extractMCPType(cfg), redacted)
+					}
+				}
+			}
+		}
+	}
+
+	// Show hooks detail in inspect
+	if len(bundle.SettingsLocal) > 0 {
+		var local map[string]json.RawMessage
+		if json.Unmarshal(bundle.SettingsLocal, &local) == nil {
+			if hooksRaw, ok := local["hooks"]; ok {
+				var hooks map[string]json.RawMessage
+				if json.Unmarshal(hooksRaw, &hooks) == nil && len(hooks) > 0 {
+					fmt.Fprintf(w, "\nHooks (%d event types) [SECURITY RISK]:\n", len(hooks))
+					printHookDetails(w, hooks)
+				}
+			}
+			if statusRaw, ok := local["statusLine"]; ok {
+				var status map[string]json.RawMessage
+				if json.Unmarshal(statusRaw, &status) == nil {
+					if cmdRaw, ok := status["command"]; ok {
+						var c string
+						json.Unmarshal(cmdRaw, &c)
+						fmt.Fprintf(w, "\nstatusLine command [SECURITY RISK]: %s\n", c)
 					}
 				}
 			}
@@ -265,6 +304,12 @@ func printInspection(cmd *cobra.Command, bundle *payload.ConfigBundle) {
 				kind = fmt.Sprintf("%d files", len(skill.Files))
 			}
 			fmt.Fprintf(w, "  - %s (%s)\n", skill.Name, kind)
+			// Show file names for non-symlink skills
+			if !skill.IsSymlink {
+				for fileName := range skill.Files {
+					fmt.Fprintf(w, "      %s\n", fileName)
+				}
+			}
 		}
 	}
 
@@ -304,6 +349,123 @@ func printInspection(cmd *cobra.Command, bundle *payload.ConfigBundle) {
 	}
 }
 
+func printSecuritySummary(cmd *cobra.Command, bundle *payload.ConfigBundle, withHooks bool) {
+	w := cmd.ErrOrStderr()
+	fmt.Fprintln(w, "\n=== Security Summary ===")
+
+	// Check for hooks
+	if len(bundle.SettingsLocal) > 0 {
+		var local map[string]json.RawMessage
+		if json.Unmarshal(bundle.SettingsLocal, &local) == nil {
+			if hooksRaw, ok := local["hooks"]; ok {
+				var hooks map[string]json.RawMessage
+				if json.Unmarshal(hooksRaw, &hooks) == nil && len(hooks) > 0 {
+					if withHooks {
+						fmt.Fprintf(w, "WARNING: Hooks will be imported (%d event types):\n", len(hooks))
+						printHookDetails(w, hooks)
+					} else {
+						fmt.Fprintf(w, "Hooks detected (%d event types) — STRIPPED for safety:\n", len(hooks))
+						printHookDetails(w, hooks)
+						fmt.Fprintln(w, "  Use --with-hooks to include them (only if you trust the source).")
+					}
+				}
+			}
+			if _, ok := local["statusLine"]; ok {
+				if withHooks {
+					fmt.Fprintln(w, "WARNING: statusLine command will be imported.")
+				} else {
+					fmt.Fprintln(w, "statusLine command detected — STRIPPED for safety.")
+				}
+			}
+		}
+	}
+
+	// Check for skills (prompt injection risk)
+	if len(bundle.Skills) > 0 {
+		fmt.Fprintf(w, "\nSkills (%d) — these inject prompts into Claude's context:\n", len(bundle.Skills))
+		for _, skill := range bundle.Skills {
+			if skill.IsSymlink {
+				fmt.Fprintf(w, "  - %s (symlink)\n", skill.Name)
+			} else {
+				fmt.Fprintf(w, "  - %s (%d files)\n", skill.Name, len(skill.Files))
+			}
+		}
+	}
+
+	// Check for MCP servers (traffic redirect risk)
+	mcpCount := 0
+	if len(bundle.UserMCPConfig) > 0 {
+		var obj map[string]json.RawMessage
+		if json.Unmarshal(bundle.UserMCPConfig, &obj) == nil {
+			if servers, ok := obj["mcpServers"]; ok {
+				var srvMap map[string]json.RawMessage
+				if json.Unmarshal(servers, &srvMap) == nil {
+					mcpCount += len(srvMap)
+					if len(srvMap) > 0 {
+						fmt.Fprintf(w, "\nUser MCP servers (%d) — these handle tool calls:\n", len(srvMap))
+						for name, cfg := range srvMap {
+							fmt.Fprintf(w, "  - %s %s\n", name, extractMCPType(cfg))
+						}
+					}
+				}
+			}
+		}
+	}
+
+	fmt.Fprintln(w, "========================")
+}
+
+func printHookDetails(w io.Writer, hooks map[string]json.RawMessage) {
+	for eventType, hookList := range hooks {
+		var entries []struct {
+			Matcher string `json:"matcher"`
+			Hooks   []struct {
+				Type    string `json:"type"`
+				Command string `json:"command"`
+			} `json:"hooks"`
+		}
+		if json.Unmarshal(hookList, &entries) == nil {
+			for _, entry := range entries {
+				for _, h := range entry.Hooks {
+					preview := h.Command
+					if len(preview) > 80 {
+						preview = preview[:80] + "..."
+					}
+					fmt.Fprintf(w, "  [%s] %s: %s\n", eventType, entry.Matcher, preview)
+				}
+			}
+		}
+	}
+}
+
+func extractMCPType(cfg json.RawMessage) string {
+	var obj map[string]json.RawMessage
+	if json.Unmarshal(cfg, &obj) != nil {
+		return ""
+	}
+	var typ string
+	if t, ok := obj["type"]; ok {
+		json.Unmarshal(t, &typ)
+	}
+	info := "(" + typ
+	if urlRaw, ok := obj["url"]; ok {
+		var u string
+		json.Unmarshal(urlRaw, &u)
+		if u != "" {
+			info += " " + u
+		}
+	}
+	if cmdRaw, ok := obj["command"]; ok {
+		var c string
+		json.Unmarshal(cmdRaw, &c)
+		if c != "" {
+			info += " " + c
+		}
+	}
+	info += ")"
+	return info
+}
+
 func printImportResult(cmd *cobra.Command, result *config.WriteResult, bundle *payload.ConfigBundle) {
 	w := cmd.ErrOrStderr()
 	fmt.Fprintln(w, "\n--- Import Complete ---")
@@ -328,6 +490,11 @@ func printImportResult(cmd *cobra.Command, result *config.WriteResult, bundle *p
 			fmt.Fprintf(w, "  - %s\n", p)
 		}
 		fmt.Fprintln(w, "Try installing manually: claude plugin install <name>")
+	}
+
+	if len(result.HooksStripped) > 0 {
+		fmt.Fprintf(w, "\nHooks stripped for safety: %s\n", strings.Join(result.HooksStripped, ", "))
+		fmt.Fprintln(w, "Re-run with --with-hooks if you trust this config source.")
 	}
 
 	if len(result.RedactedServers) > 0 {

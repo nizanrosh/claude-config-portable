@@ -135,6 +135,78 @@ func TestHasRedactedValues(t *testing.T) {
 	}
 }
 
+func TestFilterMCPConfig_NamedServerFormat(t *testing.T) {
+	t.Parallel()
+	// Plugin MCP configs use this format: {"github": {"type":"http","headers":{...}}}
+	input := json.RawMessage(`{"github":{"type":"http","url":"https://api.githubcopilot.com/mcp/","headers":{"Authorization":"Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}"}}}`)
+
+	filtered, err := FilterMCPConfig(input)
+	if err != nil {
+		t.Fatalf("FilterMCPConfig failed: %v", err)
+	}
+
+	var obj map[string]map[string]json.RawMessage
+	if err := json.Unmarshal(filtered, &obj); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+
+	server := obj["github"]
+	var headers string
+	if err := json.Unmarshal(server["headers"], &headers); err != nil {
+		t.Fatalf("headers should be a redacted string: %v", err)
+	}
+	if headers != redactedPlaceholder {
+		t.Errorf("nested headers not redacted: got %q", headers)
+	}
+
+	// type should be preserved
+	var typ string
+	json.Unmarshal(server["type"], &typ)
+	if typ != "http" {
+		t.Errorf("type not preserved: got %q", typ)
+	}
+}
+
+func TestFilterMCPConfig_NamedServerWithEnv(t *testing.T) {
+	t.Parallel()
+	// Another plugin format with env vars
+	input := json.RawMessage(`{"greptile":{"type":"stdio","command":"node","env":{"GREPTILE_API_KEY":"sk-xxx"},"oauth":{"token":"tok123"}}}`)
+
+	filtered, err := FilterMCPConfig(input)
+	if err != nil {
+		t.Fatalf("FilterMCPConfig failed: %v", err)
+	}
+
+	var obj map[string]map[string]json.RawMessage
+	json.Unmarshal(filtered, &obj)
+
+	server := obj["greptile"]
+	for _, key := range []string{"env", "oauth"} {
+		var val string
+		if err := json.Unmarshal(server[key], &val); err != nil {
+			t.Fatalf("%s should be a redacted string: %v", key, err)
+		}
+		if val != redactedPlaceholder {
+			t.Errorf("nested %s not redacted: got %q", key, val)
+		}
+	}
+
+	// command should be preserved
+	var cmd string
+	json.Unmarshal(server["command"], &cmd)
+	if cmd != "node" {
+		t.Errorf("command not preserved: got %q", cmd)
+	}
+}
+
+func TestHasRedactedValues_NamedServerFormat(t *testing.T) {
+	t.Parallel()
+	input := `{"github":{"type":"http","headers":"__CONFIGURE_AFTER_IMPORT__"}}`
+	if !HasRedactedValues(json.RawMessage(input)) {
+		t.Error("HasRedactedValues should detect redacted values in named server format")
+	}
+}
+
 func TestFilterMCPServers_NestedServers(t *testing.T) {
 	t.Parallel()
 	input := json.RawMessage(`{"mcpServers":{"my-server":{"type":"sse","url":"https://example.com?key=secret","headers":{"Auth":"Bearer tok"}}}}`)

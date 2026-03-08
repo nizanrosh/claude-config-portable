@@ -14,6 +14,12 @@ var sensitiveKeys = []string{"headers", "env", "oauth"}
 // FilterMCPConfig removes secret-bearing blocks from an MCP config JSON object.
 // It replaces headers, env, and oauth with a placeholder string and strips
 // query parameters from url values.
+//
+// Handles three formats:
+//  1. Flat server config: {"type":"http","url":"...","headers":{...}}
+//  2. mcpServers wrapper:  {"mcpServers": {"name": {server config}}}
+//  3. Named server map:    {"github": {"type":"http","headers":{...}}}
+//     (plugin MCP configs use this — server name as top-level key)
 func FilterMCPConfig(raw json.RawMessage) (json.RawMessage, error) {
 	var obj map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &obj); err != nil {
@@ -21,6 +27,8 @@ func FilterMCPConfig(raw json.RawMessage) (json.RawMessage, error) {
 	}
 
 	changed := false
+
+	// Strip sensitive keys at this level
 	for _, key := range sensitiveKeys {
 		if _, ok := obj[key]; ok {
 			placeholder, _ := json.Marshal(redactedPlaceholder)
@@ -29,6 +37,7 @@ func FilterMCPConfig(raw json.RawMessage) (json.RawMessage, error) {
 		}
 	}
 
+	// Strip URL query params at this level
 	if urlRaw, ok := obj["url"]; ok {
 		filtered, didFilter, err := filterURL(urlRaw)
 		if err == nil && didFilter {
@@ -46,6 +55,31 @@ func FilterMCPConfig(raw json.RawMessage) (json.RawMessage, error) {
 		}
 	}
 
+	// Recurse into any nested object values that look like server configs.
+	// Plugin MCP configs use format: {"github": {"type":"http","headers":{...}}}
+	// where the server name is the top-level key.
+	for key, val := range obj {
+		if key == "mcpServers" {
+			continue // already handled above
+		}
+		if isSensitiveKey(key) {
+			continue // already replaced above
+		}
+		if !isJSONObject(val) {
+			continue
+		}
+		if looksLikeServerConfig(val) {
+			filtered, err := FilterMCPConfig(val)
+			if err != nil {
+				return nil, fmt.Errorf("filtering nested server %q: %w", key, err)
+			}
+			if string(filtered) != string(val) {
+				obj[key] = filtered
+				changed = true
+			}
+		}
+	}
+
 	if !changed {
 		return raw, nil
 	}
@@ -55,6 +89,38 @@ func FilterMCPConfig(raw json.RawMessage) (json.RawMessage, error) {
 		return nil, fmt.Errorf("re-marshaling filtered MCP config: %w", err)
 	}
 	return out, nil
+}
+
+// looksLikeServerConfig returns true if the JSON object contains keys typical
+// of an MCP server config (type, url, command, headers, env, oauth).
+func looksLikeServerConfig(raw json.RawMessage) bool {
+	var obj map[string]json.RawMessage
+	if json.Unmarshal(raw, &obj) != nil {
+		return false
+	}
+	serverKeys := []string{"type", "url", "command", "args", "headers", "env", "oauth", "callbackPort"}
+	for _, k := range serverKeys {
+		if _, ok := obj[k]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func isSensitiveKey(key string) bool {
+	for _, k := range sensitiveKeys {
+		if key == k {
+			return true
+		}
+	}
+	return false
+}
+
+func isJSONObject(raw json.RawMessage) bool {
+	if len(raw) == 0 {
+		return false
+	}
+	return raw[0] == '{'
 }
 
 // FilterMCPServers filters all servers in a top-level MCP config that has
@@ -145,6 +211,15 @@ func HasRedactedValues(raw json.RawMessage) bool {
 					return true
 				}
 			}
+		}
+	}
+	// Check nested named server objects (plugin MCP format)
+	for key, val := range obj {
+		if key == "mcpServers" || isSensitiveKey(key) {
+			continue
+		}
+		if isJSONObject(val) && HasRedactedValues(val) {
+			return true
 		}
 	}
 	return false
