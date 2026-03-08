@@ -311,6 +311,11 @@ func printImportResult(cmd *cobra.Command, result *config.WriteResult, bundle *p
 		}
 	}
 
+	if result.PluginsToSync > 0 {
+		fmt.Fprintf(w, "\nPlugins: %d enabled in settings\n", result.PluginsToSync)
+		fmt.Fprintln(w, "Claude Code will install them from the marketplace on next launch.")
+	}
+
 	if len(result.RedactedServers) > 0 {
 		fmt.Fprintln(w, "\nWARNING: The following MCP servers have redacted credentials:")
 		for _, s := range result.RedactedServers {
@@ -326,7 +331,7 @@ func printImportResult(cmd *cobra.Command, result *config.WriteResult, bundle *p
 		}
 	}
 
-	fmt.Fprintln(w, "\nRestart Claude Code to sync plugins.")
+	fmt.Fprintln(w, "\nRestart Claude Code to pick up changes.")
 }
 
 func countPlugins(bundle *payload.ConfigBundle) int {
