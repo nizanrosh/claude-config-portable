@@ -9,6 +9,10 @@ Portable CLI to export and import your entire Claude Code setup (plugins, skills
 
 Share your Claude Code configuration between machines or teammates — no manual copying of dotfiles required.
 
+<p align="center">
+  <img src="assets/demo.gif" alt="claude-config-portable demo" width="720">
+</p>
+
 ## Install
 
 ```bash
