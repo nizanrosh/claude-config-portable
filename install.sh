@@ -45,13 +45,29 @@ detect_platform() {
     ARCH="${arch}"
 }
 
+# --- Check for gh CLI (needed for private repos) ---
+
+USE_GH=false
+
+check_gh() {
+    if command -v gh &>/dev/null && gh auth status &>/dev/null 2>&1; then
+        USE_GH=true
+    fi
+}
+
 # --- Resolve latest version ---
 
 resolve_version() {
     info "Resolving latest version..."
-    VERSION="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
-        | grep '"tag_name"' | head -1 | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')" \
-        || fail "Could not determine latest version. Is the repo public with releases?"
+
+    if [ "$USE_GH" = true ]; then
+        VERSION="$(gh release view --repo "${REPO}" --json tagName -q .tagName 2>/dev/null)" \
+            || fail "Could not determine latest version. Check that the repo has releases."
+    else
+        VERSION="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
+            | grep '"tag_name"' | head -1 | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')" \
+            || fail "Could not determine latest version. For private repos, install gh CLI and run 'gh auth login'."
+    fi
 
     if [ -z "$VERSION" ]; then
         fail "Could not determine latest version"
@@ -62,16 +78,22 @@ resolve_version() {
 # --- Download & install ---
 
 download_and_install() {
-    local tarball="claude-config_${VERSION#v}_${PLATFORM}_${ARCH}.tar.gz"
-    local url="https://github.com/${REPO}/releases/download/${VERSION}/${tarball}"
+    local tarball="claude-config_${VERSION}_${PLATFORM}_${ARCH}.tar.gz"
     local tmpdir
 
     tmpdir="$(mktemp -d)"
     trap 'rm -rf "$tmpdir"' EXIT
 
     info "Downloading ${tarball}..."
-    if ! curl -fsSL "$url" -o "${tmpdir}/${tarball}"; then
-        fail "Download failed. Check that the release exists at:\n       ${url}"
+    if [ "$USE_GH" = true ]; then
+        if ! gh release download "${VERSION}" --repo "${REPO}" --pattern "${tarball}" --dir "$tmpdir" 2>/dev/null; then
+            fail "Download failed. Check that release ${VERSION} has artifact ${tarball}"
+        fi
+    else
+        local url="https://github.com/${REPO}/releases/download/${VERSION}/${tarball}"
+        if ! curl -fsSL "$url" -o "${tmpdir}/${tarball}"; then
+            fail "Download failed. For private repos, install gh CLI and run 'gh auth login'."
+        fi
     fi
     ok "Downloaded"
 
@@ -118,6 +140,7 @@ main() {
     detect_platform
     info "Platform: ${PLATFORM}/${ARCH}"
 
+    check_gh
     resolve_version
     download_and_install
     verify_install
