@@ -17,7 +17,7 @@ type ConfigBundle struct {
 	MCPConfigs      map[string]json.RawMessage `json:"mcpConfigs"`
 	UserMCPConfig   json.RawMessage            `json:"userMcpConfig,omitempty"`
 	Skills          []SkillEntry               `json:"skills"`
-	Agents          []AgentEntry               `json:"agents,omitempty"`
+	Agents          []AgentEntry               `json:"agents"`
 }
 
 // PluginManifest mirrors the structure of installed_plugins.json.

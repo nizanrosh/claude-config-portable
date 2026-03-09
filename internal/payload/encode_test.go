@@ -58,7 +58,7 @@ func TestEncodeDecode_RoundTrip(t *testing.T) {
 		t.Errorf("expected 1 plugin, got %d", len(decoded.Plugins.Plugins))
 	}
 	if len(decoded.Skills) != 1 {
-		t.Errorf("expected 1 skill, got %d", len(decoded.Skills))
+		t.Fatalf("expected 1 skill, got %d", len(decoded.Skills))
 	}
 	if decoded.Skills[0].Name != "my-skill" {
 		t.Errorf("skill name mismatch: got %q", decoded.Skills[0].Name)
@@ -67,7 +67,7 @@ func TestEncodeDecode_RoundTrip(t *testing.T) {
 		t.Errorf("skill file content mismatch: got %q", decoded.Skills[0].Files["index.md"])
 	}
 	if len(decoded.Agents) != 1 {
-		t.Errorf("expected 1 agent, got %d", len(decoded.Agents))
+		t.Fatalf("expected 1 agent, got %d", len(decoded.Agents))
 	}
 	if decoded.Agents[0].Name != "my-agent.md" {
 		t.Errorf("agent name mismatch: got %q", decoded.Agents[0].Name)
