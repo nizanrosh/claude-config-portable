@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/nizanrosh/claude-config-portable/internal/agents"
 	"github.com/nizanrosh/claude-config-portable/internal/payload"
 	"github.com/nizanrosh/claude-config-portable/internal/secrets"
 	"github.com/nizanrosh/claude-config-portable/internal/skills"
@@ -17,6 +18,7 @@ import (
 type ReadOptions struct {
 	WithSecrets bool
 	NoSkills    bool
+	NoAgents    bool
 }
 
 // ReadBundle reads all Claude config files and assembles a ConfigBundle.
@@ -95,6 +97,18 @@ func ReadBundle(opts ReadOptions) (*payload.ConfigBundle, error) {
 	}
 	if bundle.Skills == nil {
 		bundle.Skills = []payload.SkillEntry{}
+	}
+
+	// Collect agents
+	if !opts.NoAgents {
+		agentEntries, err := agents.Collect(paths.AgentsDir)
+		if err != nil {
+			return nil, fmt.Errorf("collecting agents: %w", err)
+		}
+		bundle.Agents = agentEntries
+	}
+	if bundle.Agents == nil {
+		bundle.Agents = []payload.AgentEntry{}
 	}
 
 	return bundle, nil

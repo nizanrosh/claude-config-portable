@@ -26,6 +26,7 @@ type Paths struct {
 	Marketplaces     string
 	UserMCP          string
 	SkillsDir        string
+	AgentsDir        string
 	PluginsCacheDir  string
 }
 
@@ -43,6 +44,7 @@ func ResolvePaths() (Paths, error) {
 		Marketplaces:     filepath.Join(base, "plugins", "known_marketplaces.json"),
 		UserMCP:          filepath.Join(base, ".mcp.json"),
 		SkillsDir:        filepath.Join(base, "skills"),
+		AgentsDir:        filepath.Join(base, "agents"),
 		PluginsCacheDir:  filepath.Join(base, "plugins", "cache"),
 	}, nil
 }
