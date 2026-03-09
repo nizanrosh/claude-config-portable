@@ -33,6 +33,7 @@ const (
 	ComponentMarketplaces ImportComponent = "marketplaces"
 	ComponentMCP          ImportComponent = "mcp"
 	ComponentSkills       ImportComponent = "skills"
+	ComponentAgents       ImportComponent = "agents"
 )
 
 // AllComponents returns the list of all importable components.
@@ -40,6 +41,7 @@ func AllComponents() []ImportComponent {
 	return []ImportComponent{
 		ComponentSettings, ComponentHooks, ComponentPermissions,
 		ComponentPlugins, ComponentMarketplaces, ComponentMCP, ComponentSkills,
+		ComponentAgents,
 	}
 }
 
@@ -56,6 +58,7 @@ type WriteOptions struct {
 type WriteResult struct {
 	FilesWritten      []string
 	SkillsWritten     []string
+	AgentsWritten     []string
 	PluginsInstalled  []string
 	PluginsFailed     []string
 	RedactedServers   []string
@@ -126,6 +129,7 @@ func WriteBundle(bundle *payload.ConfigBundle, opts WriteOptions) (*WriteResult,
 		paths.ClaudeDir,
 		filepath.Dir(paths.InstalledPlugins),
 		paths.SkillsDir,
+		paths.AgentsDir,
 	} {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return nil, fmt.Errorf("creating directory %s: %w", dir, err)
@@ -250,6 +254,21 @@ func WriteBundle(bundle *payload.ConfigBundle, opts WriteOptions) (*WriteResult,
 				}
 			}
 			result.SkillsWritten = append(result.SkillsWritten, skill.Name)
+		}
+	}
+
+	// Write agents
+	if shouldImport(ComponentAgents, opts) {
+		for _, agent := range bundle.Agents {
+			agentPath := filepath.Join(paths.AgentsDir, agent.Name)
+			if opts.DryRun {
+				result.AgentsWritten = append(result.AgentsWritten, agent.Name+" (dry run)")
+				continue
+			}
+			if err := os.WriteFile(agentPath, []byte(agent.Content), 0644); err != nil {
+				return nil, fmt.Errorf("writing agent file %q: %w", agent.Name, err)
+			}
+			result.AgentsWritten = append(result.AgentsWritten, agent.Name)
 		}
 	}
 
