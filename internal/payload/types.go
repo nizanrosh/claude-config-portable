@@ -17,6 +17,7 @@ type ConfigBundle struct {
 	MCPConfigs      map[string]json.RawMessage `json:"mcpConfigs"`
 	UserMCPConfig   json.RawMessage            `json:"userMcpConfig,omitempty"`
 	Skills          []SkillEntry               `json:"skills"`
+	Agents          []AgentEntry               `json:"agents,omitempty"`
 }
 
 // PluginManifest mirrors the structure of installed_plugins.json.
@@ -39,4 +40,10 @@ type SkillEntry struct {
 	IsSymlink  bool              `json:"isSymlink"`
 	LinkTarget string            `json:"linkTarget,omitempty"`
 	Files      map[string]string `json:"files,omitempty"`
+}
+
+// AgentEntry represents a user-created agent file from ~/.claude/agents/.
+type AgentEntry struct {
+	Name    string `json:"name"`
+	Content string `json:"content"`
 }
