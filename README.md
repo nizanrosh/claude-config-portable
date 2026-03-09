@@ -36,6 +36,7 @@ go install github.com/nizanrosh/claude-config-portable/cmd/claude-config@latest
 | MCP server configs | `.mcp.json` inside each plugin install path |
 | User-level MCP config | `~/.claude/.mcp.json` |
 | User-created skills | `~/.claude/skills/*/` |
+| User-created agents | `~/.claude/agents/*.md` |
 
 MCP credentials (headers, env vars, OAuth tokens) are **stripped by default**. Use `--with-secrets` to include them.
 
@@ -58,6 +59,9 @@ claude-config export --with-secrets
 
 # Exclude skills
 claude-config export --no-skills
+
+# Exclude agents
+claude-config export --no-agents
 ```
 
 ### Import
@@ -91,7 +95,7 @@ claude-config import my-setup.txt --force --only settings,plugins
 claude-config import my-setup.txt --force --skip skills,mcp
 ```
 
-Available components for `--only` and `--skip`: `settings`, `hooks`, `permissions`, `plugins`, `marketplaces`, `mcp`, `skills`.
+Available components for `--only` and `--skip`: `settings`, `hooks`, `permissions`, `plugins`, `marketplaces`, `mcp`, `skills`, `agents`.
 
 ### Inspect
 
@@ -144,7 +148,7 @@ By default, `import` strips hooks and statusLine commands. Use `--with-hooks` on
 
 Every import prints a security summary before writing, showing:
 - Detected hooks (and whether they'll be stripped)
-- Skills being imported (prompt injection risk)
+- Skills and agents being imported (prompt injection risk)
 - MCP servers with their types and URLs (traffic redirect risk)
 
 ### Selective import

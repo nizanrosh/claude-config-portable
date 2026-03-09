@@ -47,6 +47,7 @@ func exportCmd() *cobra.Command {
 	var (
 		withSecrets bool
 		noSkills    bool
+		noAgents    bool
 		output      string
 		copyClip    bool
 	)
@@ -58,6 +59,7 @@ func exportCmd() *cobra.Command {
 			bundle, err := config.ReadBundle(config.ReadOptions{
 				WithSecrets: withSecrets,
 				NoSkills:    noSkills,
+				NoAgents:    noAgents,
 			})
 			if err != nil {
 				return err
@@ -89,6 +91,7 @@ func exportCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&withSecrets, "with-secrets", false, "Include MCP server secrets (headers, env vars, OAuth tokens)")
 	cmd.Flags().BoolVar(&noSkills, "no-skills", false, "Exclude user-created skills")
+	cmd.Flags().BoolVar(&noAgents, "no-agents", false, "Exclude user-created agents")
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Write to file instead of stdout")
 	cmd.Flags().BoolVarP(&copyClip, "copy", "c", false, "Copy to clipboard instead of printing")
 
@@ -185,7 +188,7 @@ func importCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would change without writing")
 	cmd.Flags().BoolVar(&withHooks, "with-hooks", false, "Import hooks from settings.local.json (stripped by default for security)")
 	cmd.Flags().BoolVar(&fromClipboard, "from-clipboard", false, "Read config from clipboard instead of argument")
-	cmd.Flags().StringSliceVar(&only, "only", nil, "Only import these components (settings,hooks,permissions,plugins,marketplaces,mcp,skills)")
+	cmd.Flags().StringSliceVar(&only, "only", nil, "Only import these components (settings,hooks,permissions,plugins,marketplaces,mcp,skills,agents)")
 	cmd.Flags().StringSliceVar(&skip, "skip", nil, "Skip these components during import")
 
 	return cmd
@@ -259,6 +262,7 @@ func printExportSummary(cmd *cobra.Command, bundle *payload.ConfigBundle) {
 	fmt.Fprintf(w, "\n%s\n", cCyan("--- Export Summary ---"))
 	fmt.Fprintf(w, "Plugins:     %s\n", cBold(countPlugins(bundle)))
 	fmt.Fprintf(w, "Skills:      %s\n", cBold(len(bundle.Skills)))
+	fmt.Fprintf(w, "Agents:      %s\n", cBold(len(bundle.Agents)))
 	fmt.Fprintf(w, "MCP configs: %s\n", cBold(len(bundle.MCPConfigs)))
 	if len(bundle.UserMCPConfig) > 0 {
 		fmt.Fprintf(w, "User MCP:    %s\n", cGreen("included"))
@@ -367,6 +371,13 @@ func printInspection(cmd *cobra.Command, bundle *payload.ConfigBundle) {
 		}
 	}
 
+	if len(bundle.Agents) > 0 {
+		fmt.Fprintf(w, "\n%s\n", cYellow(fmt.Sprintf("Agents (%d):", len(bundle.Agents))))
+		for _, agent := range bundle.Agents {
+			fmt.Fprintf(w, "  - %s\n", agent.Name)
+		}
+	}
+
 	// Settings highlights
 	if len(bundle.Settings) > 0 {
 		var settings map[string]json.RawMessage
@@ -446,6 +457,15 @@ func printSecuritySummary(cmd *cobra.Command, bundle *payload.ConfigBundle, with
 			} else {
 				fmt.Fprintf(w, "  - %s %s\n", skill.Name, cDim(fmt.Sprintf("(%d files)", len(skill.Files))))
 			}
+		}
+	}
+
+	// Check for agents (prompt injection risk)
+	if len(bundle.Agents) > 0 {
+		fmt.Fprintf(w, "\n%s\n",
+			cYellow(fmt.Sprintf("Agents (%d) — these inject prompts into Claude's context:", len(bundle.Agents))))
+		for _, agent := range bundle.Agents {
+			fmt.Fprintf(w, "  - %s\n", agent.Name)
 		}
 	}
 
@@ -535,6 +555,13 @@ func printImportResult(cmd *cobra.Command, result *config.WriteResult, bundle *p
 		fmt.Fprintf(w, "Skills written: %s\n", cBold(len(result.SkillsWritten)))
 		for _, s := range result.SkillsWritten {
 			fmt.Fprintf(w, "  %s\n", cGreen(s))
+		}
+	}
+
+	if len(result.AgentsWritten) > 0 {
+		fmt.Fprintf(w, "Agents written: %s\n", cBold(len(result.AgentsWritten)))
+		for _, a := range result.AgentsWritten {
+			fmt.Fprintf(w, "  %s\n", cGreen(a))
 		}
 	}
 
