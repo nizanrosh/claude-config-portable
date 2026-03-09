@@ -10,7 +10,9 @@ Portable CLI to export and import your entire Claude Code setup (plugins, skills
 Share your Claude Code configuration between machines or teammates — no manual copying of dotfiles required.
 
 <p align="center">
-  <img src="assets/demo.gif" alt="claude-config-portable demo" width="720">
+  <video src="https://github.com/nizanrosh/claude-config-portable/raw/main/assets/demo.mp4" width="720" autoplay loop muted playsinline>
+    Your browser does not support the video tag.
+  </video>
 </p>
 
 ## Install
