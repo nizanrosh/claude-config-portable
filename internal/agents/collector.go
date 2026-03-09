@@ -11,7 +11,7 @@ import (
 )
 
 // Collect walks the agents directory and returns all agent entries.
-// Only files with a ".md" extension are collected; backup files are skipped.
+// Only files with a ".md" extension are collected.
 func Collect(agentsDir string) ([]payload.AgentEntry, error) {
 	entries, err := os.ReadDir(agentsDir)
 	if err != nil {
@@ -21,7 +21,7 @@ func Collect(agentsDir string) ([]payload.AgentEntry, error) {
 		return nil, fmt.Errorf("reading agents directory: %w", err)
 	}
 
-	var result []payload.AgentEntry
+	var agentEntries []payload.AgentEntry
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
@@ -36,11 +36,11 @@ func Collect(agentsDir string) ([]payload.AgentEntry, error) {
 		if err != nil {
 			return nil, fmt.Errorf("reading agent file %q: %w", name, err)
 		}
-		result = append(result, payload.AgentEntry{
+		agentEntries = append(agentEntries, payload.AgentEntry{
 			Name:    name,
 			Content: string(data),
 		})
 	}
 
-	return result, nil
+	return agentEntries, nil
 }
