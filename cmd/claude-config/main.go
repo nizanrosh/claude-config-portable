@@ -460,6 +460,15 @@ func printSecuritySummary(cmd *cobra.Command, bundle *payload.ConfigBundle, with
 		}
 	}
 
+	// Check for agents (prompt injection risk)
+	if len(bundle.Agents) > 0 {
+		fmt.Fprintf(w, "\n%s\n",
+			cYellow(fmt.Sprintf("Agents (%d) — these inject prompts into Claude's context:", len(bundle.Agents))))
+		for _, agent := range bundle.Agents {
+			fmt.Fprintf(w, "  - %s\n", agent.Name)
+		}
+	}
+
 	// Check for MCP servers (traffic redirect risk)
 	if len(bundle.UserMCPConfig) > 0 {
 		var obj map[string]json.RawMessage
