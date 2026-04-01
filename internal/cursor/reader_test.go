@@ -198,8 +198,8 @@ func TestCollectCommands_MissingDir(t *testing.T) {
 func TestCollectCommands_ReadsMDFiles(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "MyCmd.md"), []byte("# Command"), 0644)
-	os.WriteFile(filepath.Join(dir, "ignored.txt"), []byte("nope"), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "MyCmd.md"), []byte("# Command"), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "ignored.txt"), []byte("nope"), 0644)
 
 	got, err := collectCommands(dir)
 	if err != nil {
