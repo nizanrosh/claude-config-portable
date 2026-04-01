@@ -196,7 +196,15 @@ func resolveCursorInput(args []string, fromClipboard bool) (string, error) {
 	if len(args) == 0 {
 		return "", fmt.Errorf("provide a config string, file path, or use --from-clipboard")
 	}
-	return resolveInput(args[0])
+	arg := args[0]
+	if strings.HasPrefix(arg, payload.CursorPrefix) {
+		return arg, nil
+	}
+	data, err := os.ReadFile(arg)
+	if err != nil {
+		return "", fmt.Errorf("reading file %s: %w", arg, err)
+	}
+	return strings.TrimSpace(string(data)), nil
 }
 
 func printCursorExportSummary(cmd *cobra.Command, bundle *payload.CursorConfigBundle) {

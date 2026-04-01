@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/nizanrosh/claude-config-portable/internal/merge"
 	"github.com/nizanrosh/claude-config-portable/internal/payload"
@@ -80,8 +81,39 @@ func shouldImport(comp CursorComponent, opts WriteOptions) bool {
 	return true
 }
 
+// ValidateComponents checks that all values in only/skip are recognized component names.
+func ValidateComponents(only, skip []string) error {
+	valid := make(map[string]bool)
+	for _, c := range AllCursorComponents() {
+		valid[string(c)] = true
+	}
+	for _, c := range only {
+		if !valid[c] {
+			return fmt.Errorf("unknown component %q in --only (valid: %s)", c, componentList())
+		}
+	}
+	for _, c := range skip {
+		if !valid[c] {
+			return fmt.Errorf("unknown component %q in --skip (valid: %s)", c, componentList())
+		}
+	}
+	return nil
+}
+
+func componentList() string {
+	var names []string
+	for _, c := range AllCursorComponents() {
+		names = append(names, string(c))
+	}
+	return strings.Join(names, ", ")
+}
+
 // WriteCursorBundle writes a CursorConfigBundle to disk.
 func WriteCursorBundle(bundle *payload.CursorConfigBundle, opts WriteOptions) (*WriteResult, error) {
+	if err := ValidateComponents(opts.Only, opts.Skip); err != nil {
+		return nil, err
+	}
+
 	paths, err := ResolveCursorPaths()
 	if err != nil {
 		return nil, err
@@ -89,16 +121,18 @@ func WriteCursorBundle(bundle *payload.CursorConfigBundle, opts WriteOptions) (*
 
 	result := &WriteResult{}
 
-	for _, dir := range []string{
-		paths.UserDir,
-		paths.SnippetsDir,
-		paths.RulesDir,
-		paths.SkillsDir,
-		paths.CommandsDir,
-		filepath.Dir(paths.ExtensionsDB),
-	} {
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return nil, fmt.Errorf("creating directory %s: %w", dir, err)
+	if !opts.DryRun {
+		for _, dir := range []string{
+			paths.UserDir,
+			paths.SnippetsDir,
+			paths.RulesDir,
+			paths.SkillsDir,
+			paths.CommandsDir,
+			filepath.Dir(paths.ExtensionsDB),
+		} {
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				return nil, fmt.Errorf("creating directory %s: %w", dir, err)
+			}
 		}
 	}
 
@@ -190,19 +224,20 @@ func WriteCursorBundle(bundle *payload.CursorConfigBundle, opts WriteOptions) (*
 				continue
 			}
 
-			if err := os.MkdirAll(skillPath, 0755); err != nil {
-				return nil, fmt.Errorf("creating skill directory %q: %w", skill.Name, err)
+		if opts.DryRun {
+			result.SkillsWritten = append(result.SkillsWritten, skill.Name+" (dry run)")
+			continue
+		}
+		if err := os.MkdirAll(skillPath, 0755); err != nil {
+			return nil, fmt.Errorf("creating skill directory %q: %w", skill.Name, err)
+		}
+		for fileName, content := range skill.Files {
+			filePath := filepath.Join(skillPath, fileName)
+			if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+				return nil, fmt.Errorf("writing skill file %q: %w", filePath, err)
 			}
-			for fileName, content := range skill.Files {
-				filePath := filepath.Join(skillPath, fileName)
-				if opts.DryRun {
-					continue
-				}
-				if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
-					return nil, fmt.Errorf("writing skill file %q: %w", filePath, err)
-				}
-			}
-			result.SkillsWritten = append(result.SkillsWritten, skill.Name)
+		}
+		result.SkillsWritten = append(result.SkillsWritten, skill.Name)
 		}
 	}
 

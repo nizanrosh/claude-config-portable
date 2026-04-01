@@ -36,7 +36,7 @@ func ReadCursorBundle(opts ReadOptions) (*payload.CursorConfigBundle, error) {
 	}
 
 	if data, err := os.ReadFile(paths.Settings); err == nil {
-		bundle.Settings = data
+		bundle.Settings = stripJSONComments(data)
 	}
 
 	if data, err := os.ReadFile(paths.Keybindings); err == nil {
@@ -123,7 +123,7 @@ func collectSnippets(dir string) (map[string]json.RawMessage, error) {
 		if err != nil {
 			return nil, fmt.Errorf("reading snippet %q: %w", entry.Name(), err)
 		}
-		result[entry.Name()] = data
+		result[entry.Name()] = stripJSONComments(data)
 	}
 
 	if len(result) == 0 {
@@ -229,35 +229,90 @@ func filterUserSkills(allSkills []payload.SkillEntry, builtinIDs map[string]bool
 	return userSkills
 }
 
-// stripJSONComments removes single-line // comments and trailing commas from
-// JSONC files (the format VS Code/Cursor uses for keybindings.json etc.).
+// stripJSONComments converts JSONC (the format VS Code/Cursor uses) to valid
+// JSON by removing // line comments, /* block comments */, and trailing commas.
 func stripJSONComments(data []byte) json.RawMessage {
-	var result []byte
-	inString := false
-	escaped := false
-	lines := strings.Split(string(data), "\n")
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if !inString && strings.HasPrefix(trimmed, "//") {
+	stripped := removeComments(data)
+	return json.RawMessage(removeTrailingCommas(stripped))
+}
+
+func removeComments(data []byte) []byte {
+	var out []byte
+	n := len(data)
+	for i := 0; i < n; {
+		if data[i] == '"' {
+			out = append(out, data[i])
+			i++
+			for i < n {
+				out = append(out, data[i])
+				if data[i] == '\\' && i+1 < n {
+					i++
+					out = append(out, data[i])
+				} else if data[i] == '"' {
+					i++
+					break
+				}
+				i++
+			}
 			continue
 		}
-		for i := 0; i < len(line); i++ {
-			if escaped {
-				escaped = false
-				continue
+		if data[i] == '/' && i+1 < n && data[i+1] == '/' {
+			for i < n && data[i] != '\n' {
+				i++
 			}
-			if line[i] == '\\' && inString {
-				escaped = true
-				continue
+			continue
+		}
+		if data[i] == '/' && i+1 < n && data[i+1] == '*' {
+			i += 2
+			for i+1 < n {
+				if data[i] == '*' && data[i+1] == '/' {
+					i += 2
+					break
+				}
+				i++
 			}
-			if line[i] == '"' {
-				inString = !inString
+			continue
+		}
+		out = append(out, data[i])
+		i++
+	}
+	return out
+}
+
+func removeTrailingCommas(data []byte) []byte {
+	var out []byte
+	n := len(data)
+	for i := 0; i < n; {
+		if data[i] == '"' {
+			out = append(out, data[i])
+			i++
+			for i < n {
+				out = append(out, data[i])
+				if data[i] == '\\' && i+1 < n {
+					i++
+					out = append(out, data[i])
+				} else if data[i] == '"' {
+					i++
+					break
+				}
+				i++
+			}
+			continue
+		}
+		if data[i] == ',' {
+			j := i + 1
+			for j < n && (data[j] == ' ' || data[j] == '\t' || data[j] == '\n' || data[j] == '\r') {
+				j++
+			}
+			if j < n && (data[j] == ']' || data[j] == '}') {
+				i++
+				continue
 			}
 		}
-		result = append(result, []byte(line)...)
-		result = append(result, '\n')
+		out = append(out, data[i])
+		i++
 	}
-	return json.RawMessage(result)
+	return out
 }
 
 // stripExtensionLocalFields removes machine-specific fields from each extension entry.
