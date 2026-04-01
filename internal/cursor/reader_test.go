@@ -171,9 +171,9 @@ func TestCollectRules_MissingDir(t *testing.T) {
 func TestCollectRules_ReadsMDCFiles(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "test.mdc"), []byte("rule content"), 0644)
-	os.WriteFile(filepath.Join(dir, "ignored.txt"), []byte("not a rule"), 0644)
-	os.WriteFile(filepath.Join(dir, "old.cursorrules"), []byte("old rule"), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "test.mdc"), []byte("rule content"), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "ignored.txt"), []byte("not a rule"), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "old.cursorrules"), []byte("old rule"), 0644)
 
 	got, err := collectRules(dir)
 	if err != nil {
