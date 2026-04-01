@@ -36,7 +36,7 @@ func main() {
 		Long:  "A portable tool to share Claude Code setup (plugins, skills, MCPs, settings) between machines.",
 	}
 
-	root.AddCommand(exportCmd(), importCmd(), inspectCmd(), versionCmd())
+	root.AddCommand(exportCmd(), importCmd(), inspectCmd(), versionCmd(), cursorCmd())
 
 	if err := root.Execute(); err != nil {
 		os.Exit(1)
